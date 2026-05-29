@@ -1,4 +1,4 @@
-FROM mautic/mautic:5-apache
+FROM mautic/mautic:5-fpm
 
 # Copy your custom fork files directly over the default installation directory
 COPY . /var/www/html
