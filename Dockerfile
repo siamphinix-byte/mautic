@@ -1,22 +1,36 @@
-FROM mautic/mautic:latest
+FROM php:8.1-fpm-alpine
 
-ARG MAUTIC_DB_HOST
-ARG MAUTIC_DB_PORT
-ARG MAUTIC_DB_USER
-ARG MAUTIC_DB_PASSWORD
-ARG MAUTIC_DB_NAME
-ARG MAUTIC_TRUSTED_PROXIES
-ARG MAUTIC_URL
-ARG MAUTIC_ADMIN_EMAIL
-ARG MAUTIC_ADMIN_PASSWORD
+# Install system dependencies and PHP extensions required by Mautic
+RUN apk add --no-cache \
+    nginx \
+    supervisor \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    libwebp-dev \
+    freetype-dev \
+    libzip-dev \
+    icu-dev \
+    libxml2-dev \
+    imap-dev \
+    openssl-dev
 
-ENV MAUTIC_DB_HOST=$MAUTIC_DB_HOST
-ENV MAUTIC_DB_PORT=$MAUTIC_DB_PORT
-ENV MAUTIC_DB_USER=$MAUTIC_DB_USER
-ENV MAUTIC_DB_PASSWORD=$MAUTIC_DB_PASSWORD
-ENV MAUTIC_DB_NAME=$MAUTIC_DB_NAME
-ENV MAUTIC_TRUSTED_PROXIES=$MAUTIC_TRUSTED_PROXIES
-ENV MAUTIC_URL=$MAUTIC_URL
-ENV MAUTIC_ADMIN_EMAIL=$MAUTIC_ADMIN_EMAIL
-ENV MAUTIC_ADMIN_PASSWORD=$MAUTIC_ADMIN_PASSWORD
-ENV PHP_INI_DATE_TIMEZONE='UTC'
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-configure imap --with-imap-ssl \
+    && docker-php-ext-install -j$(nproc) gd bcmath zip intl xml opcache pdo_mysql imap
+
+# Set up working directory
+WORKDIR /app
+
+# Copy your actual repository code into the container
+COPY . /app
+
+# Install Composer dependencies
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Set up permissions for Mautic execution
+RUN chown -R www-data:www-data /app
+
+EXPOSE 80
+
+CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off;'"]
